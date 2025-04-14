@@ -347,7 +347,7 @@ func (app *BaseApp) CheckTx(req *abci.RequestCheckTx) (*abci.ResponseCheckTx, er
 		return nil, fmt.Errorf("unknown RequestCheckTx type: %s", req.Type)
 	}
 
-	gInfo, result, anteEvents, err := app.runTx(mode, req.Tx)
+	gInfo, result, anteEvents, err := app.runTx(nil, mode, req.Tx)
 	if err != nil {
 		return sdkerrors.ResponseCheckTxWithEvents(err, gInfo.GasWanted, gInfo.GasUsed, anteEvents, app.trace), nil
 	}
@@ -790,7 +790,7 @@ func (app *BaseApp) internalFinalizeBlock(ctx context.Context, req *abci.Request
 		var response *abci.ExecTxResult
 
 		if _, err := app.txDecoder(rawTx); err == nil {
-			response = app.deliverTx(rawTx)
+			response = app.deliverTx(req.Proof, rawTx)
 		} else {
 			// In the case where a transaction included in a block proposal is malformed,
 			// we still want to return a default response to comet. This is because comet

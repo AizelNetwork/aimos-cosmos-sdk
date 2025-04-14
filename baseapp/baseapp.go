@@ -752,7 +752,7 @@ func (app *BaseApp) beginBlock(_ *abci.RequestFinalizeBlock) (sdk.BeginBlock, er
 	return resp, nil
 }
 
-func (app *BaseApp) deliverTx(tx []byte) *abci.ExecTxResult {
+func (app *BaseApp) deliverTx(proof *cmtproto.Proof, tx []byte) *abci.ExecTxResult {
 	gInfo := sdk.GasInfo{}
 	resultStr := "successful"
 
@@ -765,7 +765,7 @@ func (app *BaseApp) deliverTx(tx []byte) *abci.ExecTxResult {
 		telemetry.SetGauge(float32(gInfo.GasWanted), "tx", "gas", "wanted")
 	}()
 
-	gInfo, result, anteEvents, err := app.runTx(execModeFinalize, tx)
+	gInfo, result, anteEvents, err := app.runTx(proof, execModeFinalize, tx)
 	if err != nil {
 		resultStr = "failed"
 		resp = sdkerrors.ResponseExecTxResultWithEvents(
@@ -822,7 +822,7 @@ func (app *BaseApp) endBlock(_ context.Context) (sdk.EndBlock, error) {
 // Note, gas execution info is always returned. A reference to a Result is
 // returned if the tx does not run out of gas and if all the messages are valid
 // and execute successfully. An error is returned otherwise.
-func (app *BaseApp) runTx(mode execMode, txBytes []byte) (gInfo sdk.GasInfo, result *sdk.Result, anteEvents []abci.Event, err error) {
+func (app *BaseApp) runTx(proof *cmtproto.Proof, mode execMode, txBytes []byte) (gInfo sdk.GasInfo, result *sdk.Result, anteEvents []abci.Event, err error) {
 	// NOTE: GasWanted should be returned by the AnteHandler. GasUsed is
 	// determined by the GasMeter. We need access to the context to get the gas
 	// meter, so we initialize upfront.
@@ -950,7 +950,9 @@ func (app *BaseApp) runTx(mode execMode, txBytes []byte) (gInfo sdk.GasInfo, res
 	// in case message processing fails. At this point, the MultiStore
 	// is a branch of a branch.
 	runMsgCtx, msCache := app.cacheTxContext(ctx, txBytes)
-
+	if mode == execModeFinalize && proof != nil {
+		runMsgCtx = runMsgCtx.WithValue("proof", proof)
+	}
 	// Attempt to execute all messages and only update state if all messages pass
 	// and we're in DeliverTx. Note, runMsgs will never return a reference to a
 	// Result if any single message fails or does not have a registered Handler.
@@ -1110,7 +1112,7 @@ func (app *BaseApp) PrepareProposalVerifyTx(tx sdk.Tx) ([]byte, error) {
 		return nil, err
 	}
 
-	_, _, _, err = app.runTx(execModePrepareProposal, bz)
+	_, _, _, err = app.runTx(nil, execModePrepareProposal, bz)
 	if err != nil {
 		return nil, err
 	}
@@ -1129,7 +1131,7 @@ func (app *BaseApp) ProcessProposalVerifyTx(txBz []byte) (sdk.Tx, error) {
 		return nil, err
 	}
 
-	_, _, _, err = app.runTx(execModeProcessProposal, txBz)
+	_, _, _, err = app.runTx(nil, execModeProcessProposal, txBz)
 	if err != nil {
 		return nil, err
 	}
