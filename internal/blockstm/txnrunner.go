@@ -8,6 +8,7 @@ import (
 	abci "github.com/cometbft/cometbft/abci/types"
 
 	"cosmossdk.io/collections"
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 
 	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -39,7 +40,7 @@ type STMRunner struct {
 	coinDenom func(storetypes.MultiStore) string
 }
 
-func (e STMRunner) Run(ctx context.Context, ms storetypes.MultiStore, txs [][]byte, deliverTx sdk.DeliverTxFunc) ([]*abci.ExecTxResult, error) {
+func (e STMRunner) Run(ctx context.Context, proof *cmtproto.Proof, ms storetypes.MultiStore, txs [][]byte, deliverTx sdk.DeliverTxFunc) ([]*abci.ExecTxResult, error) {
 	var authStore, bankStore int
 	index := make(map[storetypes.StoreKey]int, len(e.stores))
 	for i, k := range e.stores {
@@ -93,7 +94,7 @@ func (e STMRunner) Run(ctx context.Context, ms storetypes.MultiStore, txs [][]by
 			if memTxs != nil {
 				memTx = memTxs[txn]
 			}
-			results[txn] = deliverTx(txs[txn], memTx, msWrapper{ms}, int(txn), cache)
+			results[txn] = deliverTx(proof, txs[txn], memTx, msWrapper{ms}, int(txn), cache)
 
 			if v != nil {
 				incarnationCache[txn].Store(v)

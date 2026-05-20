@@ -9,6 +9,7 @@ import (
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/stretchr/testify/require"
 
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
@@ -46,7 +47,7 @@ func TestDefaultRunner_Run_Success(t *testing.T) {
 	}
 
 	executionCount := atomic.Int32{}
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		executionCount.Add(1)
 		return &abci.ExecTxResult{
 			Code: 0,
@@ -55,7 +56,7 @@ func TestDefaultRunner_Run_Success(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	results, err := runner.Run(ctx, nil, txs, deliverTx)
+	results, err := runner.Run(ctx, nil, nil, txs, deliverTx)
 
 	require.NoError(t, err)
 	require.Len(t, results, len(txs))
@@ -72,13 +73,13 @@ func TestDefaultRunner_Run_EmptyTxs(t *testing.T) {
 	decoder := mockTxDecoder
 	runner := NewDefaultRunner(decoder)
 
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		t.Fatal("deliverTx should not be called for empty txs")
 		return nil
 	}
 
 	ctx := context.Background()
-	results, err := runner.Run(ctx, nil, [][]byte{}, deliverTx)
+	results, err := runner.Run(ctx, nil, nil, [][]byte{}, deliverTx)
 
 	require.NoError(t, err)
 	require.Empty(t, results)
@@ -96,13 +97,13 @@ func TestDefaultRunner_Run_InvalidTx(t *testing.T) {
 	}
 
 	validTxCount := atomic.Int32{}
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		validTxCount.Add(1)
 		return &abci.ExecTxResult{Code: 0}
 	}
 
 	ctx := context.Background()
-	results, err := runner.Run(ctx, nil, txs, deliverTx)
+	results, err := runner.Run(ctx, nil, nil, txs, deliverTx)
 
 	require.NoError(t, err)
 	require.Len(t, results, len(txs))
@@ -128,7 +129,7 @@ func TestDefaultRunner_Run_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	executionCount := atomic.Int32{}
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		count := executionCount.Add(1)
 		// Cancel after second transaction
 		if count == 2 {
@@ -137,7 +138,7 @@ func TestDefaultRunner_Run_ContextCancellation(t *testing.T) {
 		return &abci.ExecTxResult{Code: 0}
 	}
 
-	_, err := runner.Run(ctx, nil, txs, deliverTx)
+	_, err := runner.Run(ctx, nil, nil, txs, deliverTx)
 
 	require.Error(t, err)
 	require.Equal(t, context.Canceled, err)
@@ -153,14 +154,14 @@ func TestDefaultRunner_Run_MultiStoreIsNil(t *testing.T) {
 
 	txs := [][]byte{{0x01}}
 
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		require.Nil(t, ms, "multistore should be nil for DefaultRunner")
 		require.Nil(t, cache, "cache should be nil for DefaultRunner")
 		return &abci.ExecTxResult{Code: 0}
 	}
 
 	ctx := context.Background()
-	results, err := runner.Run(ctx, nil, txs, deliverTx)
+	results, err := runner.Run(ctx, nil, nil, txs, deliverTx)
 
 	require.NoError(t, err)
 	require.Len(t, results, 1)

@@ -12,6 +12,7 @@ import (
 	protov2 "google.golang.org/protobuf/proto"
 
 	"cosmossdk.io/collections"
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 
 	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -112,12 +113,12 @@ func TestSTMRunner_Run_EmptyBlock(t *testing.T) {
 		StoreKeyBank: 1,
 	})}
 
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		t.Fatal("deliverTx should not be called for empty block")
 		return nil
 	}
 
-	results, err := runner.Run(ctx, ms, [][]byte{}, deliverTx)
+	results, err := runner.Run(ctx, nil, ms, [][]byte{}, deliverTx)
 
 	require.NoError(t, err)
 	require.Nil(t, results)
@@ -143,13 +144,13 @@ func TestSTMRunner_Run_WithoutEstimation(t *testing.T) {
 	}
 
 	executionCount := atomic.Int32{}
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		executionCount.Add(1)
 		require.NotNil(t, ms)
 		return &abci.ExecTxResult{Code: 0}
 	}
 
-	results, err := runner.Run(ctx, ms, txs, deliverTx)
+	results, err := runner.Run(ctx, nil, ms, txs, deliverTx)
 
 	require.NoError(t, err)
 	require.Len(t, results, len(txs))
@@ -179,13 +180,13 @@ func TestSTMRunner_Run_WithEstimation(t *testing.T) {
 	}
 
 	executionCount := atomic.Int32{}
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		executionCount.Add(1)
 		require.NotNil(t, ms)
 		return &abci.ExecTxResult{Code: 0}
 	}
 
-	results, err := runner.Run(ctx, ms, txs, deliverTx)
+	results, err := runner.Run(ctx, nil, ms, txs, deliverTx)
 
 	require.NoError(t, err)
 	require.Len(t, results, len(txs))
@@ -210,14 +211,14 @@ func TestSTMRunner_Run_IncarnationCache(t *testing.T) {
 	}
 
 	cacheReceived := make([]bool, len(txs))
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		if cache != nil {
 			cacheReceived[txIndex] = true
 		}
 		return &abci.ExecTxResult{Code: 0}
 	}
 
-	results, err := runner.Run(ctx, ms, txs, deliverTx)
+	results, err := runner.Run(ctx, nil, ms, txs, deliverTx)
 
 	require.NoError(t, err)
 	require.Len(t, results, len(txs))
@@ -242,7 +243,7 @@ func TestSTMRunner_Run_StoreIndexMapping(t *testing.T) {
 
 	txs := [][]byte{{0x01}}
 
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		// Verify we can access both stores
 		authStore := ms.GetKVStore(StoreKeyAuth)
 		bankStore := ms.GetKVStore(StoreKeyBank)
@@ -251,7 +252,7 @@ func TestSTMRunner_Run_StoreIndexMapping(t *testing.T) {
 		return &abci.ExecTxResult{Code: 0}
 	}
 
-	results, err := runner.Run(ctx, ms, txs, deliverTx)
+	results, err := runner.Run(ctx, nil, ms, txs, deliverTx)
 
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -278,12 +279,12 @@ func TestSTMRunner_Run_ContextCancellation(t *testing.T) {
 		txs[i] = []byte{byte(i % 256)}
 	}
 
-	deliverTx := func(tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, ms storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		time.Sleep(1 * time.Millisecond) // Slow down execution
 		return &abci.ExecTxResult{Code: 0}
 	}
 
-	results, err := runner.Run(ctx, ms, txs, deliverTx)
+	results, err := runner.Run(ctx, nil, ms, txs, deliverTx)
 
 	// Should error due to context cancellation
 	require.Error(t, err)
@@ -451,7 +452,7 @@ func TestSTMRunner_Integration(t *testing.T) {
 
 	// Use STMRunner to execute
 	var results []*abci.ExecTxResult
-	deliverTx := func(tx []byte, _ sdk.Tx, mstore storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
+	deliverTx := func(proof *cmtproto.Proof, tx []byte, _ sdk.Tx, mstore storetypes.MultiStore, txIndex int, cache map[string]any) *abci.ExecTxResult {
 		// Execute using the mock block's transaction logic
 		if txIndex < blk.Size() {
 			// Convert multistore wrapper to MultiStore for block execution
@@ -468,7 +469,7 @@ func TestSTMRunner_Integration(t *testing.T) {
 		txs[i] = []byte{byte(i)}
 	}
 
-	results, err := runner.Run(ctx, ms, txs, deliverTx)
+	results, err := runner.Run(ctx, nil, ms, txs, deliverTx)
 
 	require.NoError(t, err)
 	require.Len(t, results, blk.Size())

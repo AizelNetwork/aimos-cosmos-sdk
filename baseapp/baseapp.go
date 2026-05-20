@@ -700,7 +700,7 @@ func (app *BaseApp) beginBlock(_ *abci.RequestFinalizeBlock) (sdk.BeginBlock, er
 	return resp, nil
 }
 
-func (app *BaseApp) deliverTx(tx []byte, memTx sdk.Tx, txMultiStore storetypes.MultiStore, txIndex int, incarnationCache map[string]any) *abci.ExecTxResult {
+func (app *BaseApp) deliverTx(proof *cmtproto.Proof, tx []byte, memTx sdk.Tx, txMultiStore storetypes.MultiStore, txIndex int, incarnationCache map[string]any) *abci.ExecTxResult {
 	gInfo := sdk.GasInfo{}
 	resultStr := "successful"
 
@@ -713,7 +713,7 @@ func (app *BaseApp) deliverTx(tx []byte, memTx sdk.Tx, txMultiStore storetypes.M
 		telemetry.SetGauge(float32(gInfo.GasWanted), "tx", "gas", "wanted") //nolint:staticcheck // TODO: switch to OpenTelemetry
 	}()
 
-	gInfo, result, anteEvents, err := app.RunTx(execModeFinalize, tx, memTx, txIndex, txMultiStore, incarnationCache)
+	gInfo, result, anteEvents, err := app.RunTx(proof, execModeFinalize, tx, memTx, txIndex, txMultiStore, incarnationCache)
 	if err != nil {
 		resultStr = "failed"
 		resp = sdkerrors.ResponseExecTxResultWithEvents(
@@ -775,7 +775,7 @@ func (app *BaseApp) endBlock() (sdk.EndBlock, error) {
 // and execute successfully. An error is returned otherwise.
 // both txbytes and the decoded tx are passed to runTx to avoid the state machine encoding the tx and decoding the transaction twice
 // passing the decoded tx to runTX is optional, it will be decoded if the tx is nil
-func (app *BaseApp) RunTx(mode sdk.ExecMode, txBytes []byte, tx sdk.Tx, txIndex int, txMultiStore storetypes.MultiStore, incarnationCache map[string]any) (gInfo sdk.GasInfo, result *sdk.Result, anteEvents []abci.Event, err error) {
+func (app *BaseApp) RunTx(proof *cmtproto.Proof, mode sdk.ExecMode, txBytes []byte, tx sdk.Tx, txIndex int, txMultiStore storetypes.MultiStore, incarnationCache map[string]any) (gInfo sdk.GasInfo, result *sdk.Result, anteEvents []abci.Event, err error) {
 	ctx := app.getContextForTx(mode, txBytes, txIndex)
 	ctx, span := ctx.StartSpan(tracer, "runTx")
 	defer span.End()
@@ -1112,7 +1112,7 @@ func (app *BaseApp) PrepareProposalVerifyTx(tx sdk.Tx) ([]byte, error) {
 		return nil, err
 	}
 
-	_, _, _, err = app.RunTx(execModePrepareProposal, bz, tx, -1, nil, nil)
+	_, _, _, err = app.RunTx(nil, execModePrepareProposal, bz, tx, -1, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1131,7 +1131,7 @@ func (app *BaseApp) ProcessProposalVerifyTx(txBz []byte) (sdk.Tx, error) {
 		return nil, err
 	}
 
-	_, _, _, err = app.RunTx(execModeProcessProposal, txBz, tx, -1, nil, nil)
+	_, _, _, err = app.RunTx(nil, execModeProcessProposal, txBz, tx, -1, nil, nil)
 	if err != nil {
 		return nil, err
 	}

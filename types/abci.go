@@ -5,6 +5,7 @@ import (
 
 	abci "github.com/cometbft/cometbft/abci/types"
 
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 )
 
@@ -111,13 +112,13 @@ type RunTx = func(txBytes []byte, tx Tx) (gInfo GasInfo, result *Result, anteEve
 // DeliverTxFunc is the function called for each transaction in order to produce a single ExecTxResult.
 // `memTx` is an optional in-memory representation of the transaction, which can be used to avoid decoding the
 // transaction.
-type DeliverTxFunc func(tx []byte, memTx Tx, ms storetypes.MultiStore, txIndex int, incarnationCache map[string]any) *abci.ExecTxResult
+type DeliverTxFunc func(proof *cmtproto.Proof, tx []byte, memTx Tx, ms storetypes.MultiStore, txIndex int, incarnationCache map[string]any) *abci.ExecTxResult
 
 // TxRunner defines an interface for types which can be used to execute the DeliverTxFunc.
 // It should return an array of *abci.ExecTxResult corresponding to the result of executing each transaction
 // provided to the Run function.
 type TxRunner interface {
-	Run(ctx context.Context, ms storetypes.MultiStore, txs [][]byte, deliverTx DeliverTxFunc) ([]*abci.ExecTxResult, error)
+	Run(ctx context.Context, proof *cmtproto.Proof, ms storetypes.MultiStore, txs [][]byte, deliverTx DeliverTxFunc) ([]*abci.ExecTxResult, error)
 }
 
 // PeerFilter responds to p2p filtering queries from Tendermint

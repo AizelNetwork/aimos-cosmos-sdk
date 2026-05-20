@@ -373,7 +373,7 @@ func (app *BaseApp) CheckTx(req *abci.RequestCheckTx) (*abci.ResponseCheckTx, er
 	}
 
 	if app.abciHandlers.CheckTxHandler == nil {
-		gasInfo, result, anteEvents, err := app.RunTx(mode, req.Tx, nil, -1, nil, nil)
+		gasInfo, result, anteEvents, err := app.RunTx(nil, mode, req.Tx, nil, -1, nil, nil)
 		if err != nil {
 			return sdkerrors.ResponseCheckTxWithEvents(err, gasInfo.GasWanted, gasInfo.GasUsed, anteEvents, app.trace), nil
 		}
@@ -389,7 +389,7 @@ func (app *BaseApp) CheckTx(req *abci.RequestCheckTx) (*abci.ResponseCheckTx, er
 
 	// Create wrapper to avoid users overriding the execution mode
 	runTx := func(txBytes []byte, tx sdk.Tx) (gInfo sdk.GasInfo, result *sdk.Result, anteEvents []abci.Event, err error) {
-		return app.RunTx(mode, txBytes, tx, -1, nil, nil)
+		return app.RunTx(nil, mode, txBytes, tx, -1, nil, nil)
 	}
 
 	return app.abciHandlers.CheckTxHandler(runTx, req)
@@ -892,7 +892,7 @@ func (app *BaseApp) internalFinalizeBlock(goCtx context.Context, req *abci.Reque
 	// NOTE: Not all raw transactions may adhere to the sdk.Tx interface, e.g.
 	// vote extensions, so skip those.
 	eweStart := time.Now()
-	txResults, err := app.executeTxsWithExecutor(ctx, finalizeState.MultiStore, req.Txs)
+	txResults, err := app.executeTxsWithExecutor(ctx, req.Proof, finalizeState.MultiStore, req.Txs)
 	measureSince(ctx, func() metric.Int64Histogram { return inst.ExecuteWithExecutorTime }, eweStart)
 	if err != nil {
 		// usually due to canceled
@@ -944,14 +944,14 @@ func (app *BaseApp) internalFinalizeBlock(goCtx context.Context, req *abci.Reque
 	}, nil
 }
 
-func (app *BaseApp) executeTxsWithExecutor(ctx context.Context, ms storetypes.MultiStore, txs [][]byte) ([]*abci.ExecTxResult, error) {
+func (app *BaseApp) executeTxsWithExecutor(ctx context.Context, proof *cmtproto.Proof, ms storetypes.MultiStore, txs [][]byte) ([]*abci.ExecTxResult, error) {
 	if app.txRunner == nil {
 		app.txRunner = txnrunner.NewDefaultRunner(
 			app.txDecoder,
 		)
 	}
 
-	return app.txRunner.Run(ctx, ms, txs, app.deliverTx)
+	return app.txRunner.Run(ctx, proof, ms, txs, app.deliverTx)
 }
 
 // FinalizeBlock will execute the block proposal provided by RequestFinalizeBlock.

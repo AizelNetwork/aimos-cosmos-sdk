@@ -4,7 +4,7 @@ import (
 	"context"
 
 	abci "github.com/cometbft/cometbft/abci/types"
-
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
@@ -23,14 +23,14 @@ type DefaultRunner struct {
 	txDecoder sdk.TxDecoder
 }
 
-func (d DefaultRunner) Run(ctx context.Context, _ storetypes.MultiStore, txs [][]byte, deliverTx sdk.DeliverTxFunc) ([]*abci.ExecTxResult, error) {
+func (d DefaultRunner) Run(ctx context.Context, proof *cmtproto.Proof, _ storetypes.MultiStore, txs [][]byte, deliverTx sdk.DeliverTxFunc) ([]*abci.ExecTxResult, error) {
 	// Fallback to the default execution logic
 	txResults := make([]*abci.ExecTxResult, 0, len(txs))
 	for i, rawTx := range txs {
 		var response *abci.ExecTxResult
 
 		if memTx, err := d.txDecoder(rawTx); err == nil {
-			response = deliverTx(rawTx, memTx, nil, i, nil)
+			response = deliverTx(proof, rawTx, memTx, nil, i, nil)
 		} else {
 			// In the case where a transaction included in a block proposal is malformed,
 			// we still want to return a default response to comet. This is because comet
