@@ -932,7 +932,7 @@ func (app *BaseApp) RunTx(proof *cmtproto.Proof, mode sdk.ExecMode, txBytes []by
 	// in case message processing fails. At this point, the MultiStore
 	// is a branch of a branch.
 	runMsgCtx, msCache := app.cacheTxContext(ctx)
-	if mode == execModeFinalize && proof != nil {
+	if proof != nil {
 		runMsgCtx = runMsgCtx.WithValue("proof", proof)
 	}
 	// Attempt to execute all messages and only update state if all messages pass
